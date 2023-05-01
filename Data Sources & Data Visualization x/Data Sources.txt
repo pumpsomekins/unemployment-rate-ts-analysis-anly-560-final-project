@@ -1,0 +1,11 @@
+GDP:
+https://www.kaggle.com/datasets/alejopaullier/-gdp-by-country-1999-2022
+
+Inflation Rate:
+https://www.kaggle.com/datasets/prasertk/300-years-of-inflation-rate-in-us
+
+Real Disposable Personal Income:
+https://fred.stlouisfed.org/series/DSPIC96
+
+Unemployment Rate:
+https://fred.stlouisfed.org/series/UNRATE

@@ -1,0 +1,121 @@
+---
+title: "Part 1"
+author: "Yifeng Chen"
+date: "2023-04-26"
+output: html_document
+---
+
+```{r}
+library(plotly)
+library(dplyr)
+library(GGally)
+```
+
+```{r setup, include=FALSE}
+grossDP_us <- read.csv("Gross Domestic Product US.csv")
+consumerPI_us <- read.csv("Consumer Price Index US.csv")
+realDI_us <- read.csv("Real Disposable Personal Income US.csv")
+unemploymentR_us <- read.csv("Unemployment Rate US.csv")
+```
+
+```{r}
+grossDP_us$DATE <- as.Date(grossDP_us$DATE)
+consumerPI_us$DATE <- as.Date(consumerPI_us$DATE)
+realDI_us$DATE <- as.Date(realDI_us$DATE)
+unemploymentR_us$DATE <- as.Date(unemploymentR_us$DATE)
+```
+
+```{r}
+colnames(grossDP_us)[2] <- "DATA"
+colnames(consumerPI_us)[2] <- "DATA"
+colnames(realDI_us)[2] <- "DATA"
+colnames(unemploymentR_us)[2] <- "DATA"
+```
+
+```{r}
+consumerPI_us <- consumerPI_us %>%
+  mutate(RATE = (DATA - lag(DATA)) / lag(DATA) * 100)
+```
+
+```{r}
+p <- plot_ly(data = consumerPI_us, x = ~DATE, y = ~RATE, type = 'scatter', mode = 'lines+markers', name = 'ConsumerPI_us') %>%
+  add_trace(data = unemploymentR_us, x = ~DATE, y = ~DATA, mode = 'lines+markers', name = 'UnemploymentR_us') %>%
+  layout(title = 'Two Data Series on the Same Plot',
+         xaxis = list(title = 'Date'),
+         yaxis = list(title = 'Value'))
+
+p
+```
+
+```{r}
+p <- plot_ly(data = grossDP_us, x = ~DATE, y = ~DATA, type = 'scatter', mode = 'lines+markers', name = 'grossDP_us') %>%
+  add_trace(data = realDI_us, x = ~DATE, y = ~DATA, mode = 'lines+markers', name = 'realDI_us') %>%
+  layout(title = 'Two Data Series on the Same Plot',
+         xaxis = list(title = 'Date'),
+         yaxis = list(title = 'Value'))
+
+p
+```
+
+```{r}
+merged_data <- Reduce(function(x, y) merge(x, y, by = "DATE"), list(grossDP_us, consumerPI_us, realDI_us, unemploymentR_us))
+colnames(merged_data)[2] <- "grossDP_us"
+colnames(merged_data)[3] <- "consumerPI_us"
+colnames(merged_data)[5] <- "realDI_us"
+colnames(merged_data)[6] <- "unemploymentR_us"
+```
+
+```{r}
+p <- ggpairs(merged_data, columns = c(2,3,5,6))
+
+p
+```
+
+```{r}
+plot(merged_data)
+```
+
+```{r}
+cor(merged_data[,2:6])
+```
+
+```{r}
+data_standardized <- scale(merged_data[,2:6])
+```
+
+
+```{r}
+data_standardized <- data.frame(data_standardized)
+model <- lm(unemploymentR_us ~ ., data = data_standardized)
+summary(model)
+```
+```{r}
+# Load the caret package
+library(caret)
+
+# Create the train-test split
+set.seed(123)
+index <- createDataPartition(data_standardized$unemploymentR_us, p = 0.8, list = FALSE)
+train_data <- data_standardized[index, ]
+test_data <- data_standardized[-index, ]
+
+# Fit the linear regression model on the training data
+model <- lm(unemploymentR_us ~ ., data = data_standardized)
+
+# Make predictions on the test data
+predictions <- predict(model, newdata = test_data)
+
+# Calculate the MAE on the test data
+mae <- mean(abs(predictions - test_data$unemploymentR_us))
+```
+
+```{r}
+library(keras)
+model <- keras_model_sequential()
+
+```
+
+```{r}
+
+```
+
