@@ -1,0 +1,329 @@
+---
+title: "ARIMAX/SARIMAX/VAR"
+author: "Yifeng Chen"
+date: "2023-04-26"
+output: html_document
+---
+
+```{r, echo=FALSE, include=FALSE}
+library(plotly)
+library(dplyr)
+library(gridExtra)
+library(ggfortify)
+library(vars)
+library(Metrics)
+library(GGally)
+library(lmtest)
+library(lubridate)
+library(reshape2)
+library(ggplot2)
+library(tseries)
+library(forecast)
+library(vars)
+library(zoo)
+```
+
+```{r, echo=FALSE, include=FALSE}
+grossDP_us <- read.csv("Gross Domestic Product US.csv")
+consumerPI_us <- read.csv("Consumer Price Index US.csv")
+realDI_us <- read.csv("Real Disposable Personal Income US.csv")
+unemploymentR_us <- read.csv("Unemployment Rate US.csv")
+```
+
+```{r, echo=FALSE, include=FALSE}
+grossDP_us$DATE <- as.Date(grossDP_us$DATE)
+consumerPI_us$DATE <- as.Date(consumerPI_us$DATE)
+realDI_us$DATE <- as.Date(realDI_us$DATE)
+unemploymentR_us$DATE <- as.Date(unemploymentR_us$DATE)
+```
+
+```{r, echo=FALSE, include=FALSE}
+colnames(grossDP_us)[2] <- "DATA"
+colnames(consumerPI_us)[2] <- "DATA"
+colnames(realDI_us)[2] <- "DATA"
+colnames(unemploymentR_us)[2] <- "DATA"
+```
+
+```{r, echo=FALSE, include=FALSE}
+consumerPI_us <- consumerPI_us %>%
+  mutate(RATE = (DATA - lag(DATA)) / lag(DATA) * 100)
+```
+
+```{r, echo=FALSE, include=FALSE}
+merged_data <- Reduce(function(x, y) merge(x, y, by = "DATE"), list(grossDP_us, consumerPI_us, realDI_us, unemploymentR_us))
+colnames(merged_data)[2] <- "grossDP_us"
+colnames(merged_data)[3] <- "consumerPI_us"
+colnames(merged_data)[4] <- "consumerPIR_us"
+colnames(merged_data)[5] <- "realDI_us"
+colnames(merged_data)[6] <- "unemploymentR_us"
+```
+
+```{r, echo=FALSE, include=FALSE}
+remove_missing_values <- function(data) {
+  return(data[!is.na(data)])
+}
+
+# Consumer Price Index Rate
+data_cpir <- ts(remove_missing_values(consumerPI_us$RATE), frequency = 12, start = c(1947, 2))
+
+# Unemployment Rate
+data_unemployment <- ts(remove_missing_values(unemploymentR_us$DATA), frequency = 12, start = c(1976, 1))
+
+# Consumer Price Index
+data_cpi <- ts(remove_missing_values(consumerPI_us$DATA), frequency = 12, start = c(1947, 1))
+
+# Gross Domestic Product
+data_gdp <- ts(remove_missing_values(grossDP_us$DATA), frequency = 12, start = c(1947, 1))
+
+# Real Disposable Income
+data_rdi <- ts(remove_missing_values(realDI_us$DATA), frequency = 12, start = c(1951, 1))
+```
+
+```{r, echo=FALSE}
+VARselect(merged_data[2:6], lag.max=10, type="both")
+```
+
+```{r, echo=FALSE}
+summary(VAR(merged_data[2:6], p=1, type='both'))
+summary(VAR(merged_data[2:6], p=4, type='both'))
+summary(VAR(merged_data[2:6], p=7, type='both'))
+```
+
+```{r, echo=FALSE}
+# Define a function to perform rolling cross-validation
+rolling_cv_VAR <- function(data, train_size, lag) {
+  n <- nrow(data)
+  RMSE_list <- list()
+  
+  for (i in (train_size + 1):n) {
+    train <- data[1:(i - 1), -1]
+    test <- data[i, -1]
+    var_model <- VAR(train, p = lag)
+    forecasted <- predict(var_model, n.ahead = 1)$fcst$grossDP_us[,1]
+    rmse <- sqrt(mean((forecasted - test$grossDP_us)^2))
+    RMSE_list[[i - train_size]] <- rmse
+  }
+  
+  RMSE_df <- data.frame(Date = data[(train_size + 1):n, 1], RMSE = unlist(RMSE_list))
+  return(RMSE_df)
+}
+
+# Perform cross-validation with specified train size and lags
+train_size <- 36  # Training size
+lags <- c(4, 7)  # Lag orders
+RMSE_dfs <- list()
+
+for (lag in lags) {
+  RMSE_df <- rolling_cv_VAR(merged_data, train_size, lag)
+  RMSE_df$lag <- paste0("Lag ", lag)
+  RMSE_dfs[[length(RMSE_dfs) + 1]] <- RMSE_df
+}
+
+# Combine RMSE data frames
+RMSE_df <- do.call(rbind, RMSE_dfs)
+
+# Plot Date vs. RMSE
+ggplot(RMSE_df, aes(x = Date, y = RMSE, color = lag)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "CV Date vs. RMSE for grossDP_us", x = "Date", y = "RMSE") +
+  theme_minimal()
+
+# Print the average RMSE for each lag
+print('The mean for lag 4:')
+mean(RMSE_df[1:220, 2])
+print('The mean for lag 7:')
+mean(na.omit(RMSE_df[221:440, 2]))
+```
+
+```{r, echo=FALSE}
+# Define a function to perform rolling cross-validation
+rolling_cv_VAR <- function(data, train_size, lag) {
+  n <- nrow(data)
+  RMSE_list <- list()
+  
+  for (i in (train_size + 1):n) {
+    train <- data[1:(i - 1), -1]
+    test <- data[i, -1]
+    var_model <- VAR(train, p = lag)
+    forecasted <- predict(var_model, n.ahead = 1)$fcst$consumerPI_us [,1]
+    rmse <- sqrt(mean((forecasted - test$consumerPI_us )^2))
+    RMSE_list[[i - train_size]] <- rmse
+  }
+  
+  RMSE_df <- data.frame(Date = data[(train_size + 1):n, 1], RMSE = unlist(RMSE_list))
+  return(RMSE_df)
+}
+
+# Perform cross-validation with specified train size and lags
+train_size <- 36  # Training size
+lags <- c(4, 7)  # Lag orders
+RMSE_dfs <- list()
+
+for (lag in lags) {
+  RMSE_df <- rolling_cv_VAR(merged_data, train_size, lag)
+  RMSE_df$lag <- paste0("Lag ", lag)
+  RMSE_dfs[[length(RMSE_dfs) + 1]] <- RMSE_df
+}
+
+# Combine RMSE data frames
+RMSE_df <- do.call(rbind, RMSE_dfs)
+
+# Plot Date vs. RMSE
+ggplot(RMSE_df, aes(x = Date, y = RMSE, color = lag)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "CV Date vs. RMSE for consumerPI_us ", x = "Date", y = "RMSE") +
+  theme_minimal()
+
+# Print the average RMSE for each lag
+print('The mean for lag 4:')
+mean(RMSE_df[1:220, 2])
+print('The mean for lag 7:')
+mean(na.omit(RMSE_df[221:440, 2]))
+```
+
+```{r, echo=FALSE}
+# Define a function to perform rolling cross-validation
+rolling_cv_VAR <- function(data, train_size, lag) {
+  n <- nrow(data)
+  RMSE_list <- list()
+  
+  for (i in (train_size + 1):n) {
+    train <- data[1:(i - 1), -1]
+    test <- data[i, -1]
+    var_model <- VAR(train, p = lag)
+    forecasted <- predict(var_model, n.ahead = 1)$fcst$consumerPIR_us   [,1]
+    rmse <- sqrt(mean((forecasted - test$consumerPIR_us   )^2))
+    RMSE_list[[i - train_size]] <- rmse
+  }
+  
+  RMSE_df <- data.frame(Date = data[(train_size + 1):n, 1], RMSE = unlist(RMSE_list))
+  return(RMSE_df)
+}
+
+# Perform cross-validation with specified train size and lags
+train_size <- 36  # Training size
+lags <- c(4, 7)  # Lag orders
+RMSE_dfs <- list()
+
+for (lag in lags) {
+  RMSE_df <- rolling_cv_VAR(merged_data, train_size, lag)
+  RMSE_df$lag <- paste0("Lag ", lag)
+  RMSE_dfs[[length(RMSE_dfs) + 1]] <- RMSE_df
+}
+
+# Combine RMSE data frames
+RMSE_df <- do.call(rbind, RMSE_dfs)
+
+# Plot Date vs. RMSE
+ggplot(RMSE_df, aes(x = Date, y = RMSE, color = lag)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "CV Date vs. RMSE for consumerPIR_us   ", x = "Date", y = "RMSE") +
+  theme_minimal()
+
+# Print the average RMSE for each lag
+print('The mean for lag 4:')
+mean(RMSE_df[1:220, 2])
+print('The mean for lag 7:')
+mean(na.omit(RMSE_df[221:440, 2]))
+```
+
+```{r, echo=FALSE}
+# Define a function to perform rolling cross-validation
+rolling_cv_VAR <- function(data, train_size, lag) {
+  n <- nrow(data)
+  RMSE_list <- list()
+  
+  for (i in (train_size + 1):n) {
+    train <- data[1:(i - 1), -1]
+    test <- data[i, -1]
+    var_model <- VAR(train, p = lag)
+    forecasted <- predict(var_model, n.ahead = 1)$fcst$realDI_us  [,1]
+    rmse <- sqrt(mean((forecasted - test$realDI_us  )^2))
+    RMSE_list[[i - train_size]] <- rmse
+  }
+  
+  RMSE_df <- data.frame(Date = data[(train_size + 1):n, 1], RMSE = unlist(RMSE_list))
+  return(RMSE_df)
+}
+
+# Perform cross-validation with specified train size and lags
+train_size <- 36  # Training size
+lags <- c(4, 7)  # Lag orders
+RMSE_dfs <- list()
+
+for (lag in lags) {
+  RMSE_df <- rolling_cv_VAR(merged_data, train_size, lag)
+  RMSE_df$lag <- paste0("Lag ", lag)
+  RMSE_dfs[[length(RMSE_dfs) + 1]] <- RMSE_df
+}
+
+# Combine RMSE data frames
+RMSE_df <- do.call(rbind, RMSE_dfs)
+
+# Plot Date vs. RMSE
+ggplot(RMSE_df, aes(x = Date, y = RMSE, color = lag)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "CV Date vs. RMSE for realDI_us  ", x = "Date", y = "RMSE") +
+  theme_minimal()
+
+# Print the average RMSE for each lag
+print('The mean for lag 4:')
+mean(RMSE_df[1:220, 2])
+print('The mean for lag 7:')
+mean(na.omit(RMSE_df[221:440, 2]))
+```
+
+```{r, echo=FALSE}
+# Define a function to perform rolling cross-validation
+rolling_cv_VAR <- function(data, train_size, lag) {
+  n <- nrow(data)
+  RMSE_list <- list()
+  
+  for (i in (train_size + 1):n) {
+    train <- data[1:(i - 1), -1]
+    test <- data[i, -1]
+    var_model <- VAR(train, p = lag)
+    forecasted <- predict(var_model, n.ahead = 1)$fcst$unemploymentR_us [,1]
+    rmse <- sqrt(mean((forecasted - test$unemploymentR_us )^2))
+    RMSE_list[[i - train_size]] <- rmse
+  }
+  
+  RMSE_df <- data.frame(Date = data[(train_size + 1):n, 1], RMSE = unlist(RMSE_list))
+  return(RMSE_df)
+}
+
+# Perform cross-validation with specified train size and lags
+train_size <- 36  # Training size
+lags <- c(4, 7)  # Lag orders
+RMSE_dfs <- list()
+
+for (lag in lags) {
+  RMSE_df <- rolling_cv_VAR(merged_data, train_size, lag)
+  RMSE_df$lag <- paste0("Lag ", lag)
+  RMSE_dfs[[length(RMSE_dfs) + 1]] <- RMSE_df
+}
+
+# Combine RMSE data frames
+RMSE_df <- do.call(rbind, RMSE_dfs)
+
+# Plot Date vs. RMSE
+ggplot(RMSE_df, aes(x = Date, y = RMSE, color = lag)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "CV Date vs. RMSE for unemploymentR_us ", x = "Date", y = "RMSE") +
+  theme_minimal()
+
+# Print the average RMSE for each lag
+print('The mean for lag 4:')
+mean(RMSE_df[1:220, 2])
+print('The mean for lag 7:')
+mean(na.omit(RMSE_df[221:440, 2]))
+```
+
+**Model with p = 4 is better than the model with p = 7.**
+
+**Although the differenced data for gdp, unemployment rate and real disposable income pass the stationarlity test, they do not fit in the VAR model which gives me errors so i use the orignal data and the result is pretty statisfactory as evidenced by the high R-squared values and the low residual standard errors. I could not replicate the CV over the lab so i coded myself.** 

@@ -1,0 +1,241 @@
+---
+title: "Exploratory Data Analysis"
+author: "Yifeng Chen"
+date: "2023-04-26"
+output: html_document
+---
+
+```{r, echo=FALSE, include=FALSE}
+library(plotly)
+library(dplyr)
+library(gridExtra)
+library(vars)
+library(GGally)
+library(lmtest)
+library(ggplot2)
+library(tseries)
+library(forecast)
+```
+
+```{r, echo=FALSE, include=FALSE}
+grossDP_us <- read.csv("Gross Domestic Product US.csv")
+consumerPI_us <- read.csv("Consumer Price Index US.csv")
+realDI_us <- read.csv("Real Disposable Personal Income US.csv")
+unemploymentR_us <- read.csv("Unemployment Rate US.csv")
+```
+
+```{r, echo=FALSE, include=FALSE}
+grossDP_us$DATE <- as.Date(grossDP_us$DATE)
+consumerPI_us$DATE <- as.Date(consumerPI_us$DATE)
+realDI_us$DATE <- as.Date(realDI_us$DATE)
+unemploymentR_us$DATE <- as.Date(unemploymentR_us$DATE)
+```
+
+```{r, echo=FALSE, include=FALSE}
+colnames(grossDP_us)[2] <- "DATA"
+colnames(consumerPI_us)[2] <- "DATA"
+colnames(realDI_us)[2] <- "DATA"
+colnames(unemploymentR_us)[2] <- "DATA"
+```
+
+```{r, echo=FALSE, include=FALSE}
+consumerPI_us <- consumerPI_us %>%
+  mutate(RATE = (DATA - lag(DATA)) / lag(DATA) * 100)
+```
+
+```{r, echo=FALSE, include=FALSE}
+merged_data <- Reduce(function(x, y) merge(x, y, by = "DATE"), list(grossDP_us, consumerPI_us, realDI_us, unemploymentR_us))
+colnames(merged_data)[2] <- "grossDP_us"
+colnames(merged_data)[3] <- "consumerPI_us"
+colnames(merged_data)[4] <- "consumerPIR_us"
+colnames(merged_data)[5] <- "realDI_us"
+colnames(merged_data)[6] <- "unemploymentR_us"
+```
+
+```{r, echo=FALSE}
+# Consumer Price Index Rate
+data <- ts(consumerPI_us$RATE, frequency = 12, start = c(1947, 2))
+autoplot(decompose(data)) + ggtitle("Decomposition of Consumer Price Index Rate")
+gglagplot(data, main = "16-lag plot of Consumer Price Index Rate")
+
+# Unemployment Rate
+data <- ts(unemploymentR_us$DATA, frequency = 12, start = c(1976, 1))
+autoplot(decompose(data)) + ggtitle("Decomposition of Unemployment Rate")
+gglagplot(data, main = "16-lag plot of Unemployment Rate")
+
+# Consumer Price Index Rate
+data <- ts(consumerPI_us$DATA, frequency = 12, start = c(1947, 1))
+autoplot(decompose(data, type = 'multiplicative')) + ggtitle("Decomposition of Consumer Price Index")
+gglagplot(data, main = "16-lag plot of Consumer Price Index")
+
+# Gross Domestic Product
+data <- ts(grossDP_us$DATA, frequency = 12, start = c(1947, 1))
+autoplot(decompose(data, type = 'multiplicative')) + ggtitle("Decomposition of Gross Domestic Product (Multiplicative)")
+gglagplot(data, main = "16-lag plot of Gross Domestic Product")
+
+# Real Disposable Income
+data <- ts(realDI_us$DATA, frequency = 12, start = c(1951, 1))
+autoplot(decompose(data, type = 'multiplicative')) + ggtitle("Decomposition of Real Disposable Income (Multiplicative)")
+gglagplot(data, main = "16-lag plot of Real Disposable Income")
+```
+
+**CPI, GDP and real disposable income have strong positive autocorrelation while others are not.**
+
+```{r, echo=FALSE}
+generate_plots <- function(data, title) {
+  # Original data plot
+  p1 <- autoplot(data) + ggtitle(paste("Original", title))
+
+  # Detrended data plot
+  detrended_data <- data - stl(data, s.window = "periodic")$time.series[, "trend"]
+  p2 <- autoplot(detrended_data) + ggtitle(paste("Detrended", title))
+
+  # First differenced data plot
+  first_differenced_data <- diff(data)
+  p3 <- autoplot(first_differenced_data) + ggtitle(paste("First Differenced", title))
+
+  # ACF plot for original data
+  p4 <- ggAcf(data) + ggtitle(paste("ACF of Original", title))
+
+  # PACF plot for original data
+  p5 <- ggPacf(data) + ggtitle(paste("PACF of Original", title))
+
+  # ACF plot for detrended data
+  p6 <- ggAcf(detrended_data) + ggtitle(paste("ACF of Detrended", title))
+
+  # PACF plot for detrended data
+  p7 <- ggPacf(detrended_data) + ggtitle(paste("PACF of Detrended", title))
+
+  # ACF plot for first differenced data
+  p8 <- ggAcf(first_differenced_data) + ggtitle(paste("ACF of First Differenced", title))
+
+  # PACF plot for first differenced data
+  p9 <- ggPacf(first_differenced_data) + ggtitle(paste("PACF of First Differenced", title))
+
+  # Combine plots into a single figure
+  grid.arrange(p1, p2, p3, p4, p6, p8, p5, p7, p9, ncol = 3, top = title)
+}
+
+
+remove_missing_values <- function(data) {
+  return(data[!is.na(data)])
+}
+
+# Consumer Price Index Rate
+data_cpir <- ts(remove_missing_values(consumerPI_us$RATE), frequency = 12, start = c(1947, 2))
+
+# Unemployment Rate
+data_unemployment <- ts(remove_missing_values(unemploymentR_us$DATA), frequency = 12, start = c(1976, 1))
+
+# Consumer Price Index
+data_cpi <- ts(remove_missing_values(consumerPI_us$DATA), frequency = 12, start = c(1947, 1))
+
+# Gross Domestic Product
+data_gdp <- ts(remove_missing_values(grossDP_us$DATA), frequency = 12, start = c(1947, 1))
+
+# Real Disposable Income
+data_rdi <- ts(remove_missing_values(realDI_us$DATA), frequency = 12, start = c(1951, 1))
+
+# Consumer Price Index Rate
+generate_plots(data_cpir, "Consumer Price Index Rate")
+
+# Unemployment Rate
+generate_plots(data_unemployment, "Unemployment Rate")
+
+# Consumer Price Index
+generate_plots(data_cpi, "Consumer Price Index")
+
+# Gross Domestic Product
+generate_plots(data_gdp, "Gross Domestic Product")
+
+# Real Disposable Income
+generate_plots(data_rdi, "Real Disposable Income")
+
+```
+
+```{r, echo=FALSE}
+# Consumer Price Index Rate
+adf_cpir <- adf.test(data_cpir)
+print("ADF test for Consumer Price Index Rate")
+print(adf_cpir)
+
+# Unemployment Rate
+adf_unemployment <- adf.test(data_unemployment)
+print("ADF test for Unemployment Rate")
+print(adf_unemployment)
+
+# Consumer Price Index
+adf_cpi <- adf.test(data_cpi)
+print("ADF test for Consumer Price Index")
+print(adf_cpi)
+
+# Gross Domestic Product
+adf_gdp <- adf.test(data_gdp)
+print("ADF test for Gross Domestic Product")
+print(adf_gdp)
+
+# Real Disposable Income
+adf_rdi <- adf.test(data_rdi)
+print("ADF test for Real Disposable Income")
+print(adf_rdi)
+```
+
+**Some variables are not stationary, like Consumer Price Index, Gross Domestic Product and Real Disposable Income.**
+
+```{r, echo=FALSE}
+# Apply MA smoothing with window size 3, 12, and 24
+ma3 <- ma(data_cpir, order = 3)
+ma12 <- ma(data_cpir, order = 12)
+ma24 <- ma(data_cpir, order = 24)
+# Plot original and smoothed time series data on the same graph
+plot(data_cpir, main = "Consumer Price Index Rate", ylab = "Value")
+lines(ma3, col = "red", lwd = 2)
+lines(ma12, col = "blue", lwd = 2)
+lines(ma24, col = "green", lwd = 2)
+legend("topright", legend = c("Original", "MA(3)", "MA(12)", "MA(24)"), col = c("black", "red", "blue", "green"), lty = 1, lwd = 2)
+
+# Apply MA smoothing with window size 3, 12, and 24
+ma3 <- ma(data_unemployment, order = 3)
+ma12 <- ma(data_unemployment, order = 12)
+ma24 <- ma(data_unemployment, order = 24)
+# Plot original and smoothed time series data on the same graph
+plot(data_unemployment, main = "Unemployment Rate", ylab = "Value")
+lines(ma3, col = "red", lwd = 2)
+lines(ma12, col = "blue", lwd = 2)
+lines(ma24, col = "green", lwd = 2)
+legend("topright", legend = c("Original", "MA(3)", "MA(12)", "MA(24)"), col = c("black", "red", "blue", "green"), lty = 1, lwd = 2)
+
+# Apply MA smoothing with window size 3, 12, and 24
+ma3 <- ma(data_cpi, order = 3)
+ma12 <- ma(data_cpi, order = 12)
+ma24 <- ma(data_cpi, order = 24)
+# Plot original and smoothed time series data on the same graph
+plot(data_cpi, main = "Consumer Price Index", ylab = "Value")
+lines(ma3, col = "red", lwd = 2)
+lines(ma12, col = "blue", lwd = 2)
+lines(ma24, col = "green", lwd = 2)
+legend("topright", legend = c("Original", "MA(3)", "MA(12)", "MA(24)"), col = c("black", "red", "blue", "green"), lty = 1, lwd = 2)
+
+# Apply MA smoothing with window size 3, 12, and 24
+ma3 <- ma(data_gdp, order = 3)
+ma12 <- ma(data_gdp, order = 12)
+ma24 <- ma(data_gdp, order = 24)
+# Plot original and smoothed time series data on the same graph
+plot(data_gdp, main = "GDP", ylab = "Value")
+lines(ma3, col = "red", lwd = 2)
+lines(ma12, col = "blue", lwd = 2)
+lines(ma24, col = "green", lwd = 2)
+legend("topright", legend = c("Original", "MA(3)", "MA(12)", "MA(24)"), col = c("black", "red", "blue", "green"), lty = 1, lwd = 2)
+
+# Apply MA smoothing with window size 3, 12, and 24
+ma3 <- ma(data_rdi, order = 3)
+ma12 <- ma(data_rdi, order = 12)
+ma24 <- ma(data_rdi, order = 24)
+# Plot original and smoothed time series data on the same graph
+plot(data_rdi, main = "Real Dispoable Income", ylab = "Value")
+lines(ma3, col = "red", lwd = 2)
+lines(ma12, col = "blue", lwd = 2)
+lines(ma24, col = "green", lwd = 2)
+legend("topright", legend = c("Original", "MA(3)", "MA(12)", "MA(24)"), col = c("black", "red", "blue", "green"), lty = 1, lwd = 2)
+```
+

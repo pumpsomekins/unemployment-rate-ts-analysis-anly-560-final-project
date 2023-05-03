@@ -1,0 +1,8 @@
+---
+title: "Conclusion"
+author: "Yifeng Chen"
+date: "2023-04-26"
+output: html_document
+---
+
+**The findings suggest that a Recurrent Neural Network (RNN) model with Long Short-Term Memory (LSTM) architecture is the most effective way to predict the unemployment rate using various economic variables. This model outperforms other models such as the Gated Recurrent Unit (GRU) model and Vector Autoregression (VAR) models with lag 4 and 7. The research also indicates that different economic variables have different relationships with each other and with the unemployment rate, and using the right statistical methods such as Autoregressive Integrated Moving Average (ARIMA) can help to predict the unemployment rate accurately.**

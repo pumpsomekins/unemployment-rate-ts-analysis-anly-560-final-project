@@ -1,8 +1,8 @@
 GDP:
-https://www.kaggle.com/datasets/alejopaullier/-gdp-by-country-1999-2022
+https://fred.stlouisfed.org/series/GDP
 
-Inflation Rate:
-https://www.kaggle.com/datasets/prasertk/300-years-of-inflation-rate-in-us
+Consumer Price Index:
+https://fred.stlouisfed.org/series/CPIAUCSL
 
 Real Disposable Personal Income:
 https://fred.stlouisfed.org/series/DSPIC96
